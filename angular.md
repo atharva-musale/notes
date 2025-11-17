@@ -146,64 +146,233 @@ export class ReversePipe implements PipeTransform {
 
 ### 5. What is View encapsulation?
 
-**View Encapsulation** determines how component styles are scoped and applied.
+View Encapsulation determines how component styles are scoped and applied, controlling whether styles leak in or out of components.
+
+#### ViewEncapsulation.Emulated (Default):
+Angular emulates Shadow DOM by adding unique attributes to elements and transforming CSS selectors.
 
 ```typescript
 @Component({
-  selector: 'app-user',
-  template: '<div class="container">User</div>',
-  styles: ['.container { color: red; }'],
-  encapsulation: ViewEncapsulation.Emulated // Default
+  selector: 'app-emulated',
+  template: `
+    <div class="header">Emulated Header</div>
+    <p class="content">This content is scoped to this component</p>
+  `,
+  styles: [`
+    .header { color: blue; }
+    .content { background: yellow; }
+  `],
+  encapsulation: ViewEncapsulation.Emulated
 })
-export class UserComponent { }
+export class EmulatedComponent { }
+```
+Generated code:
+
+```html
+<!-- Angular adds unique attributes -->
+<app-emulated _ngcontent-abc-123="">
+  <div class="header" _ngcontent-abc-123="">Emulated Header</div>
+  <p class="content" _ngcontent-abc-123="">This content is scoped to this component</p>
+</app-emulated>
 ```
 
-**Three modes:**
-- **Emulated (default)**: Scopes styles to component using attributes
-- **None**: No encapsulation, styles apply globally
-- **ShadowDom**: Uses native Shadow DOM for true encapsulation
+```css
+/* Angular transforms selectors with attribute selectors */
+.header[_ngcontent-abc-123] { color: blue; }
+.content[_ngcontent-abc-123] { background: yellow; }
+```
+
+Characteristics:
+- ✅ Styles scoped to component (won't affect other components)
+- ✅ Global styles can still affect this component
+- ✅ Works in all browsers
+- ✅ Default and most commonly used
+- ❌ Slightly larger DOM due to attributes
+
+#### ViewEncapsulation.None
+No encapsulation - styles are added to global styles and apply everywhere.
+
+
+#### ViewEncapsulation.ShadowDom:
+Uses native browser Shadow DOM for true encapsulation.
+
+```typescript
+@Component({
+  selector: 'app-shadow',
+  template: `
+    <div class="shadow-header">Shadow DOM Header</div>
+    <p class="content">Completely isolated from outside styles</p>
+    <slot></slot> <!-- For content projection -->
+  `,
+  styles: [`
+    .shadow-header { color: purple; }
+    .content { background: lightgray; }
+    
+    /* These styles are completely isolated */
+    h1 { color: orange; } /* Won't affect h1 outside this component */
+    * { box-sizing: border-box; } /* Safe to use universal selectors */
+  `],
+  encapsulation: ViewEncapsulation.ShadowDom
+})
+export class ShadowComponent { }
+```
+
+Generated HTML:
+```html
+<app-shadow>
+  #shadow-root (open)
+    <style>
+      .shadow-header { color: purple; }
+      .content { background: lightgray; }
+      h1 { color: orange; }
+      * { box-sizing: border-box; }
+    </style>
+    <div class="shadow-header">Shadow DOM Header</div>
+    <p class="content">Completely isolated from outside styles</p>
+    <slot></slot>
+</app-shadow>
+```
+
+Characteristics:
+- ✅ True style isolation (both ways)
+- ✅ Global styles CANNOT affect this component
+- ✅ Component styles CANNOT leak out
+- ✅ Native browser feature
+- ❌ Limited browser support (modern browsers only)
+- ❌ Harder to debug styles
+- ❌ CSS frameworks may not work as expected
 
 ### 6. How does change detection work?
 
-**Change Detection** is Angular's mechanism to update the view when data changes.
+Change Detection is Angular's mechanism to update the view when your component state (data) changes. It walks the component tree and checks bindings to decide what needs to be re-rendered.
+
+At a high level:
+- Angular listens for async events (clicks, HTTP responses, timers, promises, etc.)
+- When an event happens, Angular's zone (`zone.js`) marks the app as "dirty"
+- The change detection cycle runs from the root down the component tree
+- Angular compares current values of bindings with previous values and updates the DOM where needed
+
+#### What triggers change detection?
+
+By default, any async task inside Angular's zone triggers a full change detection run for the entire component tree.
+
+#### The Change Detection Tree
+
+- Your Angular app is a tree of components
+- Change detection starts at the root component and walks down
+- Each component's bindings (template expressions) are checked
+- If a binding value changed, Angular updates that part of the DOM
+
+```text
+AppComponent
+ ├── HeaderComponent
+ ├── SidebarComponent
+ └── DashboardComponent
+      ├── StatsWidgetComponent
+      └── ChartComponent
+```
+
+An event in `ChartComponent` can still cause checks to run from `AppComponent` down to all children (depending on strategy).
+
+#### Change Detection Strategies: Default vs OnPush
 
 ```typescript
-export class UserComponent {
-  users: User[] = [];
-  
-  // Change detection triggered by:
-  // 1. DOM Events
-  onClick() {
-    this.users.push(new User());
-  }
-  
-  // 2. HTTP Requests
-  loadUsers() {
-    this.userService.getUsers().subscribe(users => {
-      this.users = users; // Change detection runs
-    });
-  }
-  
-  // 3. Timers
-  ngOnInit() {
-    setInterval(() => {
-      this.currentTime = new Date(); // Change detection runs
-    }, 1000);
-  }
+import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
+
+// Default strategy (implicit)
+@Component({
+  selector: 'app-default-child',
+  template: `
+    <p>Default: {{ user.name }} - {{ counter }}</p>
+  `
+})
+export class DefaultChildComponent {
+  @Input() user!: { name: string };
+  @Input() counter = 0;
 }
 
-// Manual change detection
-constructor(private cdr: ChangeDetectorRef) {}
+// OnPush strategy
+@Component({
+  selector: 'app-onpush-child',
+  template: `
+    <p>OnPush: {{ user.name }} - {{ counter }}</p>
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush
+})
+export class OnPushChildComponent {
+  @Input() user!: { name: string };
+  @Input() counter = 0;
+}
 
-updateData() {
-  // Detach from change detection
-  this.cdr.detach();
-  
-  // Manually trigger
-  this.cdr.detectChanges();
-  
-  // Reattach
-  this.cdr.reattach();
+@Component({
+  selector: 'app-parent',
+  template: `
+    <button (click)="increment()">Increment</button>
+
+    <app-default-child [user]="user" [counter]="counter"></app-default-child>
+    <app-onpush-child [user]="user" [counter]="counter"></app-onpush-child>
+  `
+})
+export class ParentComponent {
+  user = { name: 'John' };
+  counter = 0;
+
+  increment() {
+    this.counter++;
+
+    // Mutating object property
+    this.user.name = 'John ' + this.counter;
+  }
+}
+```
+
+**Behavior:**
+- `DefaultChildComponent` updates when **anything** triggers change detection in the app
+- `OnPushChildComponent` updates only when:
+  - An `@Input()` reference changes (new object/array)
+  - An event inside the component fires (click, input, etc.)
+  - An observable bound with `async` pipe emits a new value
+  - You manually mark it for check
+
+With the code above:
+- `counter` changes (primitive) → both children update
+- `user.name` is mutated (same object reference):
+  - Default: will still render updated name, because parent gets checked and template re-evaluated
+  - OnPush: may **not** detect change if only the property changed but reference is same (depending on where the mutation happens)
+
+**Best practice with OnPush:** treat `@Input()`s as **immutable** and always pass new object references:
+
+```typescript
+updateUserName() {
+  this.user = { ...this.user, name: 'New Name' }; // New reference
+}
+```
+
+**Common `ChangeDetectorRef` methods:**
+- `detectChanges()`: Run change detection **immediately** on this component and its children
+- `markForCheck()`: Mark this component and ancestors for checking in the next CD cycle (use with OnPush)
+- `detach()`: Stop this component from participating in automatic CD
+- `reattach()`: Re-join the component to the CD tree
+
+```typescript
+export class ManualCdComponent {
+  data = 0;
+
+  constructor(private cdr: ChangeDetectorRef) {}
+
+  ngOnInit() {
+    // Stop automatic checks
+    this.cdr.detach();
+
+    setInterval(() => {
+      this.data++;
+
+      // Manually trigger view update when needed
+      if (this.data % 5 === 0) {
+        this.cdr.detectChanges();
+      }
+    }, 1000);
+  }
 }
 ```
 

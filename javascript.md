@@ -236,6 +236,18 @@ var multiplyByTwo = multiply.bind(this, 2);
 console.log(multiplyByTwo(5)); // gives 10
 ```
 
+There can also be generic currying functions which convert any function into a curried version:
+```javascript
+var curry = function (fn) {
+  return function curried(...args) {
+    if (args.length !== fn.length) {
+      return curried.bind(null, ...args);
+    }
+    return fn(...args);
+  }
+};
+```
+
 ### Functional programming
 
 Functional Programming (FP) is a programming paradigm that treats computation as the evaluation of mathematical functions. It emphasizes writing programs using pure functions, avoiding shared state, mutable data, and side effects.
@@ -258,7 +270,7 @@ console.log(ans);
 ### Object oriented javascript
 
 This section deals with how objects are created in javascript. It uses a concept called Prototypal inheritence. It implements by using a prototype property which is common across all objects.
-When we search for a property in any object, it first looks for it in the object properties. If it doesn't find it, js starts looking for it in the prototype of that object (denoted by `__proto__`), and it keeps on checking down the prototype chain. Example"
+When we search for a property in any object, it first looks for it in the object properties. If it doesn't find it, js starts looking for it in the prototype of that object (denoted by `__proto__`), and it keeps on checking down the prototype chain. Example:
 
 ```javascript
 var defaultName = {
@@ -419,7 +431,7 @@ Components of the Event Loop System:
 
 ## WebSockets
 
-**WebSockets** provide full-duplex communication between client and server over a single TCP connection. Unlike HTTP requests, WebSockets maintain a persistent connection allowing real-time bidirectional data exchange.
+WebSockets provide full-duplex communication between client and server over a single TCP connection. Unlike HTTP requests, WebSockets maintain a persistent connection allowing real-time bidirectional data exchange.
 
 ```javascript
 // Client-side WebSocket implementation
@@ -427,30 +439,30 @@ const socket = new WebSocket('ws://localhost:8080');
 
 // Connection opened
 socket.onopen = function(event) {
-    console.log('Connected to WebSocket server');
-    socket.send('Hello Server!');
+  console.log('Connected to WebSocket server');
+  socket.send('Hello Server!');
 };
 
 // Receive messages from server
 socket.onmessage = function(event) {
-    console.log('Message from server:', event.data);
+  console.log('Message from server:', event.data);
 };
 
 // Handle connection close
 socket.onclose = function(event) {
-    console.log('WebSocket connection closed');
+  console.log('WebSocket connection closed');
 };
 
 // Handle errors
 socket.onerror = function(error) {
-    console.error('WebSocket error:', error);
+  console.error('WebSocket error:', error);
 };
 
 // Send message to server
 function sendMessage(message) {
-    if (socket.readyState === WebSocket.OPEN) {
-        socket.send(message);
-    }
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(message);
+  }
 }
 ```
 
@@ -565,7 +577,7 @@ processImage(imageData).then(processedData => {
 
 ### Service Workers
 
-**Service Workers** act as a proxy between your web app and the network, enabling features like offline functionality, push notifications, and background sync.
+Service Worker act as a proxy between your web app and the network, enabling features like offline functionality, push notifications, and background sync.
 
 #### **Service Worker Lifecycle:**
 
@@ -574,7 +586,7 @@ processImage(imageData).then(processedData => {
 3. **Activation**: Activate and take control
 4. **Fetch Events**: Intercept network requests
 
-#### **Registering a Service Worker:**
+#### Registering a Service Worker:
 
 **Main Thread:**
 ```javascript
