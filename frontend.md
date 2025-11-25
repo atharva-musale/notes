@@ -71,58 +71,65 @@ class UserService {
 
 **Goal:** Add new behavior by extending, not by editing existing, tested code.
 
-**Without OCP: Big `if`/`switch` that keeps growing**
+**Without OCP: Big `if`/`switch` that keeps growing and new function needs to be added if RefundData supports a new property later**
 
 ```ts
-class DiscountService {
-  getDiscount(userType: 'regular' | 'premium' | 'vip'): number {
-    if (userType === 'regular') return 0.05;
-    if (userType === 'premium') return 0.1;
-    if (userType === 'vip') return 0.2;
-    // Adding new types means editing this method
-    return 0;
+class RefundData {
+  constructor(refundAmount: number, paidAmount: number, usedAmount: number) {
+    this.refundAmount = refundAmount;
+    this.paidAmount = paidAmount;
+    this.usedAmount = usedAmount;
   }
+}
+
+const refundData1 = new RefundData(100, 1000, 900);
+const refundData2 = new RefundData(200, 1000, 800);
+const refundDetailsForPNR = [refundData1, refundData2]
+
+function addRefundAmounts(refundDetails: RefundData[]) {
+  return refundDetails.map(data => data.refundAmount)..reduce((acc, curr) => acc + curr);
+}
+
+function addPaidAmounts(refundDetails: RefundData[]) {
+  return refundDetails.map(data => data.paidAmount)..reduce((acc, curr) => acc + curr);
+}
+
+function addUsedAmounts(refundDetails: RefundData[]) {
+  return refundDetails.map(data => data.usedAmount)..reduce((acc, curr) => acc + curr);
+}
+
+const refundDetailsToDisplay = {
+  totalRefundAmount: addRefundAmounts(refundDetailsForPNR),
+  totalPaidAmounts: addPaidAmounts(refundDetailsForPNR),
+  totalUsedAmounts: addUsedAmounts(refundDetailsForPNR),
 }
 ```
 
-**With OCP: Use polymorphism**
+**With OCP: Abstract use of things**
 
 ```ts
-interface DiscountStrategy {
-  getDiscount(): number;
-}
-
-class RegularDiscount implements DiscountStrategy {
-  getDiscount() {
-    return 0.05;
+class RefundData {
+  constructor(refundAmount: number, paidAmount: number, usedAmount: number) {
+    this.refundAmount = refundAmount;
+    this.paidAmount = paidAmount;
+    this.usedAmount = usedAmount;
   }
 }
 
-class PremiumDiscount implements DiscountStrategy {
-  getDiscount() {
-    return 0.1;
-  }
+const refundData1 = new RefundData(100, 1000, 900);
+const refundData2 = new RefundData(200, 1000, 800);
+const refundDetailsForPNR = [refundData1, refundData2]
+
+function addAmountsByProperty(refundDetails: RefundData[], property: string) {
+  return refundDetails.map(data => data[property])..reduce((acc, curr) => acc + curr);
 }
 
-class VipDiscount implements DiscountStrategy {
-  getDiscount() {
-    return 0.2;
-  }
+const refundDetailsToDisplay = {
+  totalRefundAmount: addAmountsByProperty(refundDetailsForPNR, 'refundAmount'),
+  totalPaidAmounts: addAmountsByProperty(refundDetailsForPNR, 'paidAmount'),
+  totalUsedAmounts: addAmountsByProperty(refundDetailsForPNR, 'usedAmount'),
 }
-
-class DiscountContext {
-  constructor(private strategy: DiscountStrategy) {}
-
-  calculate() {
-    return this.strategy.getDiscount();
-  }
-}
-
-// Usage
-const discount = new DiscountContext(new PremiumDiscount()).calculate();
 ```
-
-Adding a new discount type = create a new class implementing `DiscountStrategy`, no need to change `DiscountContext`.
 
 ---
 
