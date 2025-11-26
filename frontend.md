@@ -353,3 +353,794 @@ The high-level `UserApi2` only knows about `HttpLike` (an abstraction), not abou
 | **LSP** | Subtypes must be substitutable for base types | Reliable inheritance hierarchies |
 | **ISP** | Many small interfaces > one large interface | Clients depend only on what they need |
 | **DIP** | Depend on abstractions, not concretions | Loose coupling, easier testing |
+
+## Code Organization Architectures
+
+### 1. Monorepo Architecture
+
+**Definition:** A single repository containing multiple related projects/packages (apps, libraries, tools) managed together.
+
+**Structure (Nx + Angular):**
+```
+my-nx-workspace/
+├── apps/
+│   ├── web/                    # Main Angular web application
+│   │   ├── src/
+│   │   │   ├── app/
+│   │   │   ├── assets/
+│   │   │   └── main.ts
+│   │   ├── project.json
+│   │   └── tsconfig.app.json
+│   ├── mobile/                 # Ionic/Capacitor mobile app
+│   │   └── src/
+│   └── admin/                  # Admin dashboard
+│       └── src/
+├── libs/
+│   ├── shared/
+│   │   ├── ui/                 # Shared UI component library
+│   │   │   ├── src/
+│   │   │   │   ├── lib/
+│   │   │   │   │   ├── button/
+│   │   │   │   │   │   ├── button.component.ts
+│   │   │   │   │   │   ├── button.component.html
+│   │   │   │   │   │   └── button.component.scss
+│   │   │   │   │   ├── input/
+│   │   │   │   │   └── shared-ui.module.ts
+│   │   │   │   └── index.ts
+│   │   │   ├── project.json
+│   │   │   └── tsconfig.lib.json
+│   │   ├── data-access/        # API services and state management
+│   │   │   └── src/
+│   │   ├── utils/              # Utility functions
+│   │   │   └── src/
+│   │   └── models/             # Shared TypeScript interfaces/types
+│   │       └── src/
+│   └── feature/
+│       ├── auth/               # Auth feature library
+│       ├── products/           # Products feature library
+│       └── cart/               # Cart feature library
+├── nx.json                     # Nx configuration
+├── package.json                # Root package.json
+└── tsconfig.base.json          # Base TypeScript config
+```
+
+**Creating Nx workspace:**
+
+```bash
+# Create new Nx workspace with Angular
+npx create-nx-workspace@latest my-nx-workspace \
+  --preset=angular-monorepo \
+  --appName=web \
+  --style=scss
+
+# Generate additional Angular app
+nx g @nx/angular:app admin
+
+# Generate Angular library
+nx g @nx/angular:library ui --directory=shared --buildable
+
+# Generate component in library
+nx g @nx/angular:component button \
+  --project=shared-ui \
+  --export
+```
+
+**Nx Configuration:**
+
+```json
+// nx.json
+{
+  "targetDefaults": {
+    "build": {
+      "dependsOn": ["^build"],
+      "cache": true
+    },
+    "test": {
+      "cache": true
+    }
+  },
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*"],
+    "production": ["!{projectRoot}/**/*.spec.ts"]
+  }
+}
+
+// tsconfig.base.json - Path mappings for libraries
+{
+  "compilerOptions": {
+    "paths": {
+      "@mycompany/shared/ui": ["libs/shared/ui/src/index.ts"],
+      "@mycompany/shared/data-access": ["libs/shared/data-access/src/index.ts"],
+      "@mycompany/shared/utils": ["libs/shared/utils/src/index.ts"],
+      "@mycompany/shared/models": ["libs/shared/models/src/index.ts"]
+    }
+  }
+}
+```
+
+**Creating shared UI library:**
+
+```typescript
+// libs/shared/ui/src/lib/button/button.component.ts
+import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { CommonModule } from '@angular/common';
+
+@Component({
+  selector: 'mycompany-button',
+  standalone: true,
+  imports: [CommonModule],
+  template: `
+    <button 
+      [class]="'btn ' + variant" 
+      [disabled]="disabled"
+      (click)="onClick.emit()">
+      {{ label }}
+    </button>
+  `,
+  styles: [`
+    .btn { padding: 8px 16px; border-radius: 4px; }
+    .primary { background: blue; color: white; }
+    .secondary { background: gray; color: white; }
+  `]
+})
+export class ButtonComponent {
+  @Input() label = '';
+  @Input() variant: 'primary' | 'secondary' = 'primary';
+  @Input() disabled = false;
+  @Output() onClick = new EventEmitter<void>();
+}
+
+// libs/shared/ui/src/lib/input/input.component.ts
+import { Component, Input, forwardRef } from '@angular/core';
+import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+
+@Component({
+  selector: 'mycompany-input',
+  standalone: true,
+  imports: [CommonModule, FormsModule],
+  template: `
+    <input 
+      [type]="type"
+      [placeholder]="placeholder"
+      [disabled]="disabled"
+      [(ngModel)]="value"
+      (blur)="onTouched()"
+    />
+  `,
+  providers: [{
+    provide: NG_VALUE_ACCESSOR,
+    useExisting: forwardRef(() => InputComponent),
+    multi: true
+  }]
+})
+export class InputComponent implements ControlValueAccessor {
+  @Input() placeholder = '';
+  @Input() type = 'text';
+  @Input() disabled = false;
+  
+  value = '';
+  onChange: any = () => {};
+  onTouched: any = () => {};
+  
+  writeValue(value: any): void {
+    this.value = value;
+  }
+  
+  registerOnChange(fn: any): void {
+    this.onChange = fn;
+  }
+  
+  registerOnTouched(fn: any): void {
+    this.onTouched = fn;
+  }
+}
+
+// libs/shared/ui/src/index.ts - Public API
+export * from './lib/button/button.component';
+export * from './lib/input/input.component';
+```
+
+**Creating shared data-access library:**
+
+```typescript
+// libs/shared/data-access/src/lib/services/api.service.ts
+import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
+import { User } from '@mycompany/shared/models';
+
+@Injectable({ providedIn: 'root' })
+export class ApiService {
+  constructor(private http: HttpClient) {}
+  
+  getUsers(): Observable<User[]> {
+    return this.http.get<User[]>('/api/users');
+  }
+}
+
+// libs/shared/data-access/src/index.ts
+export * from './lib/services/api.service';
+```
+
+**Creating shared models library:**
+
+```typescript
+// libs/shared/models/src/lib/user.model.ts
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  price: number;
+}
+
+// libs/shared/models/src/index.ts
+export * from './lib/user.model';
+```
+
+**Using libraries in Angular app:**
+
+```typescript
+// apps/web/src/app/app.component.ts
+import { Component, OnInit } from '@angular/core';
+import { ButtonComponent, InputComponent } from '@mycompany/shared/ui';
+import { ApiService } from '@mycompany/shared/data-access';
+import { User } from '@mycompany/shared/models';
+import { formatDate } from '@mycompany/shared/utils';
+
+@Component({
+  selector: 'app-root',
+  standalone: true,
+  imports: [ButtonComponent, InputComponent],
+  template: `
+    <h1>Welcome to {{ title }}!</h1>
+    
+    <mycompany-button 
+      label="Click me" 
+      variant="primary"
+      (onClick)="handleClick()">
+    </mycompany-button>
+    
+    <mycompany-input 
+      placeholder="Enter text"
+      [(ngModel)]="inputValue">
+    </mycompany-input>
+    
+    <p>Current date: {{ formattedDate }}</p>
+    
+    <div *ngFor="let user of users">
+      {{ user.name }} - {{ user.email }}
+    </div>
+  `
+})
+export class AppComponent implements OnInit {
+  title = 'web';
+  inputValue = '';
+  users: User[] = [];
+  formattedDate = formatDate(new Date());
+  
+  constructor(private apiService: ApiService) {}
+  
+  ngOnInit() {
+    this.apiService.getUsers().subscribe(users => {
+      this.users = users;
+    });
+  }
+  
+  handleClick() {
+    console.log('Button clicked!');
+  }
+}
+```
+
+**Running Nx commands:**
+
+```bash
+# Serve a specific app
+nx serve web
+nx serve admin
+
+# Build with dependencies
+nx build web  # Automatically builds shared libraries first
+
+# Run tests
+nx test shared-ui
+nx test web
+
+# Run all tests
+nx run-many --target=test --all
+
+# Build all apps
+nx run-many --target=build --all
+
+# Lint specific project
+nx lint shared-ui
+
+# Generate dependency graph
+nx graph
+
+# Run affected commands (only what changed)
+nx affected:test
+nx affected:build
+nx affected:lint
+
+# Add dependency to specific project
+npm install lodash --save
+# Then import in the specific library/app
+```
+
+**Nx project configuration:**
+
+```json
+// libs/shared/ui/project.json
+{
+  "name": "shared-ui",
+  "sourceRoot": "libs/shared/ui/src",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "@nx/angular:package",
+      "outputs": ["{workspaceRoot}/dist/libs/shared/ui"],
+      "options": {
+        "project": "libs/shared/ui/ng-package.json"
+      }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "options": {
+        "jestConfig": "libs/shared/ui/jest.config.ts"
+      }
+    },
+    "lint": {
+      "executor": "@nx/linter:eslint",
+      "options": {
+        "lintFilePatterns": ["libs/shared/ui/**/*.ts"]
+      }
+    }
+  },
+  "tags": ["scope:shared", "type:ui"]
+}
+```
+
+**Pros:**
+- ✅ Code sharing simplified (no versioning hassle)
+- ✅ Atomic commits across projects
+- ✅ Easier refactoring (change propagates immediately)
+- ✅ Single CI/CD pipeline
+- ✅ Consistent tooling and dependencies
+- ✅ Better visibility into entire codebase
+
+**Cons:**
+- ❌ Large repository size
+- ❌ Slower clone/checkout times
+- ❌ Complex CI (need to detect what changed)
+- ❌ Access control harder (all or nothing)
+- ❌ Tooling needs to scale
+
+**Use cases:** Google, Facebook, Microsoft, large product families, design systems
+
+**Popular tools:** Turborepo, Nx, Lerna, pnpm workspaces, Yarn workspaces
+
+---
+
+### 2. Polyrepo (Multi-repo) Architecture
+
+**Definition:** Each project/package lives in its own separate repository.
+
+**Structure:**
+```
+@mycompany/web (repo 1)
+├── src/
+└── package.json
+    └── dependencies: 
+        └── "@mycompany/ui": "^2.3.0"  // Published npm package
+
+@mycompany/ui (repo 2)
+├── src/
+└── package.json
+    └── version: "2.3.0"
+
+@mycompany/mobile (repo 3)
+├── src/
+└── package.json
+```
+
+**How it works:**
+
+```typescript
+// Repo: @mycompany/ui
+// package.json
+{
+  "name": "@mycompany/ui",
+  "version": "2.3.0",
+  "main": "dist/index.js"
+}
+
+// Build and publish to npm
+// npm publish
+
+// Repo: @mycompany/web
+// package.json
+{
+  "name": "@mycompany/web",
+  "dependencies": {
+    "@mycompany/ui": "^2.3.0"  // Install from npm registry
+  }
+}
+
+// Use like any other npm package
+import { Button } from '@mycompany/ui';
+```
+
+**Versioning and updates:**
+
+```bash
+# In UI repo - make changes and publish
+cd ui-repo
+npm version patch  # 2.3.0 -> 2.3.1
+npm publish
+
+# In web repo - update dependency
+cd web-repo
+npm update @mycompany/ui
+# or manually edit package.json and run npm install
+```
+
+**Pros:**
+- ✅ Clear boundaries and ownership
+- ✅ Independent versioning
+- ✅ Granular access control
+- ✅ Smaller, faster clones
+- ✅ Easier to open-source individual packages
+- ✅ Simpler CI per repo
+
+**Cons:**
+- ❌ Version coordination overhead
+- ❌ Harder to refactor across repos
+- ❌ Changes require multiple PRs
+- ❌ Dependency hell risk
+- ❌ Duplicate tooling config
+- ❌ Testing integration harder
+
+**Use cases:** Open-source libraries, loosely coupled services, small teams
+
+---
+
+### 3. Hybrid Approach (Modular Monorepo)
+
+**Definition:** Monorepo with clear module boundaries, treating internal packages like external ones.
+
+**Structure:**
+```
+monorepo/
+├── apps/
+│   └── web/
+├── packages/
+│   ├── core/           # Core business logic (versioned)
+│   ├── ui/             # UI library (versioned)
+│   └── features/       # Feature modules
+│       ├── auth/
+│       ├── dashboard/
+│       └── analytics/
+└── internal/           # Internal tools (not versioned)
+    ├── build-tools/
+    └── test-utils/
+```
+
+**Versioning strategy:**
+
+```json
+// packages/ui/package.json
+{
+  "name": "@mycompany/ui",
+  "version": "3.1.0",      // Semantic versioning even in monorepo
+  "publishConfig": {
+    "access": "public"
+  }
+}
+
+// apps/web/package.json
+{
+  "dependencies": {
+    "@mycompany/ui": "workspace:^3.0.0",  // Use workspace protocol
+    "@mycompany/core": "workspace:*"       // Always latest in workspace
+  }
+}
+```
+
+**Pros:**
+- ✅ Best of both worlds
+- ✅ Can publish packages independently
+- ✅ Clear module contracts
+- ✅ Migration path to polyrepo
+
+**Cons:**
+- ❌ More complex setup
+- ❌ Need discipline to maintain boundaries
+
+---
+
+### 4. Microfrontend Architecture
+
+**Definition:** Breaking frontend into independently deployable micro-applications.
+
+**Structure:**
+```
+shell-app/              # Container/orchestrator
+├── src/
+│   ├── App.tsx        # Loads microfrontends
+│   └── routes.tsx
+
+header-mfe/             # Separate repo/deployment
+├── src/
+└── webpack.config.js  # Module Federation config
+
+products-mfe/           # Separate repo/deployment
+cart-mfe/               # Separate repo/deployment
+checkout-mfe/           # Separate repo/deployment
+```
+
+**Module Federation setup:**
+
+```javascript
+// products-mfe/webpack.config.js
+const { ModuleFederationPlugin } = require('webpack').container;
+
+module.exports = {
+  plugins: [
+    new ModuleFederationPlugin({
+      name: 'products',
+      filename: 'remoteEntry.js',
+      exposes: {
+        './ProductList': './src/ProductList',
+        './ProductDetail': './src/ProductDetail'
+      },
+      shared: {
+        react: { singleton: true },
+        'react-dom': { singleton: true }
+      }
+    })
+  ]
+};
+
+// shell-app/webpack.config.js
+module.exports = {
+  plugins: [
+    new ModuleFederationPlugin({
+      name: 'shell',
+      remotes: {
+        products: 'products@http://localhost:3001/remoteEntry.js',
+        cart: 'cart@http://localhost:3002/remoteEntry.js',
+        checkout: 'checkout@http://localhost:3003/remoteEntry.js'
+      },
+      shared: {
+        react: { singleton: true },
+        'react-dom': { singleton: true }
+      }
+    })
+  ]
+};
+```
+
+**Usage in shell:**
+
+```typescript
+// shell-app/src/App.tsx
+import React, { lazy, Suspense } from 'react';
+
+const ProductList = lazy(() => import('products/ProductList'));
+const Cart = lazy(() => import('cart/Cart'));
+const Checkout = lazy(() => import('checkout/Checkout'));
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Header />
+      <Suspense fallback={<div>Loading...</div>}>
+        <Routes>
+          <Route path="/products" element={<ProductList />} />
+          <Route path="/cart" element={<Cart />} />
+          <Route path="/checkout" element={<Checkout />} />
+        </Routes>
+      </Suspense>
+    </BrowserRouter>
+  );
+}
+```
+
+**Communication between microfrontends:**
+
+```typescript
+// Shared event bus
+// packages/shared/src/eventBus.ts
+class EventBus {
+  private events: Map<string, Function[]> = new Map();
+
+  subscribe(event: string, callback: Function) {
+    if (!this.events.has(event)) {
+      this.events.set(event, []);
+    }
+    this.events.get(event)!.push(callback);
+  }
+
+  publish(event: string, data: any) {
+    if (this.events.has(event)) {
+      this.events.get(event)!.forEach(cb => cb(data));
+    }
+  }
+}
+
+export const eventBus = new EventBus();
+
+// products-mfe: Publish event
+import { eventBus } from '@shared/eventBus';
+
+function ProductCard({ product }) {
+  const handleAddToCart = () => {
+    eventBus.publish('cart:add', product);
+  };
+  
+  return <button onClick={handleAddToCart}>Add to Cart</button>;
+}
+
+// cart-mfe: Subscribe to event
+import { eventBus } from '@shared/eventBus';
+
+function Cart() {
+  const [items, setItems] = useState([]);
+  
+  useEffect(() => {
+    eventBus.subscribe('cart:add', (product) => {
+      setItems(prev => [...prev, product]);
+    });
+  }, []);
+  
+  return <div>Cart: {items.length} items</div>;
+}
+```
+
+**Pros:**
+- ✅ True team independence
+- ✅ Deploy microfrontends separately
+- ✅ Technology diversity possible
+- ✅ Parallel development
+- ✅ Fault isolation
+
+**Cons:**
+- ❌ Complex orchestration
+- ❌ Shared state management hard
+- ❌ Potential for duplicate code/dependencies
+- ❌ Runtime performance overhead
+- ❌ Debugging complexity
+
+**Use cases:** Large enterprise apps, multi-team products, gradual migration strategies
+
+---
+
+### 5. Feature-based Architecture
+
+**Definition:** Organize code by features/domains rather than technical layers.
+
+**Structure:**
+```
+src/
+├── features/
+│   ├── auth/
+│   │   ├── components/
+│   │   │   ├── LoginForm.tsx
+│   │   │   └── SignupForm.tsx
+│   │   ├── hooks/
+│   │   │   └── useAuth.ts
+│   │   ├── api/
+│   │   │   └── authApi.ts
+│   │   ├── store/
+│   │   │   └── authSlice.ts
+│   │   ├── types/
+│   │   │   └── auth.types.ts
+│   │   └── index.ts
+│   ├── products/
+│   │   ├── components/
+│   │   ├── hooks/
+│   │   ├── api/
+│   │   └── index.ts
+│   └── cart/
+├── shared/              # Truly shared code
+│   ├── components/
+│   ├── hooks/
+│   └── utils/
+└── App.tsx
+```
+
+**Feature module example:**
+
+```typescript
+// features/auth/index.ts
+export { LoginForm, SignupForm } from './components';
+export { useAuth, useLogin } from './hooks';
+export { authApi } from './api';
+export type { User, AuthState } from './types';
+
+// features/auth/components/LoginForm.tsx
+import { useLogin } from '../hooks/useAuth';
+import { authApi } from '../api/authApi';
+
+export function LoginForm() {
+  const { login, isLoading } = useLogin();
+  
+  const handleSubmit = async (data) => {
+    await login(data);
+  };
+  
+  return <form onSubmit={handleSubmit}>...</form>;
+}
+
+// App.tsx - Import entire feature
+import { LoginForm, useAuth } from './features/auth';
+import { ProductList } from './features/products';
+
+function App() {
+  const { user } = useAuth();
+  
+  return user ? <ProductList /> : <LoginForm />;
+}
+```
+
+**Pros:**
+- ✅ Easy to locate feature code
+- ✅ Easier to delete features
+- ✅ Clear feature boundaries
+- ✅ Reduced coupling
+- ✅ Team ownership per feature
+
+**Cons:**
+- ❌ Risk of code duplication
+- ❌ Unclear where truly shared code goes
+- ❌ Might over-engineer small projects
+
+**Use cases:** Medium to large apps, feature-flag driven development, domain-driven design
+
+---
+
+### Architecture Comparison
+
+| Architecture | Team Size | Complexity | Code Sharing | Deployment | Best For |
+|-------------|-----------|------------|--------------|------------|----------|
+| **Monorepo** | Medium-Large | Medium | Easy | Single | Product families, design systems |
+| **Polyrepo** | Any | Low-Medium | Hard (versioning) | Independent | Microservices, OSS libraries |
+| **Hybrid Monorepo** | Large | High | Easy + Versioned | Flexible | Enterprise with external packages |
+| **Microfrontend** | Large | Very High | Medium | Independent | Multi-team enterprise apps |
+| **Feature-based** | Small-Medium | Low | Easy | Single | Domain-driven apps |
+
+---
+
+### Decision Framework
+
+**Choose Monorepo when:**
+- Multiple related apps share significant code
+- You want atomic cross-project changes
+- Team collaborates closely
+- CI/CD can handle the scale
+
+**Choose Polyrepo when:**
+- Projects are truly independent
+- Different teams own different products
+- You need granular access control
+- Projects have different release cycles
+
+**Choose Microfrontend when:**
+- Multiple autonomous teams
+- Need independent deployments
+- Gradual migration from legacy
+- Different tech stacks required
+
+**Choose Feature-based when:**
+- Building a single application
+- Want clear feature boundaries
+- Domain-driven design approach
+- Medium complexity project
