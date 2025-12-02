@@ -1144,3 +1144,784 @@ function App() {
 - Want clear feature boundaries
 - Domain-driven design approach
 - Medium complexity project
+
+## Frequently asked questions:
+
+### NX: what it is and how it works
+
+**Nx** is a powerful build system and monorepo management tool that helps you develop, test, and build multiple projects efficiently in a single repository.
+
+**What Nx provides:**
+
+1. **Smart build system** - Only rebuilds what changed
+2. **Code generation** - Scaffolds apps, libraries, and components
+3. **Dependency graph** - Visualizes project relationships
+4. **Affected commands** - Runs tasks only on affected projects
+5. **Caching** - Local and distributed computation caching
+6. **Plugin system** - Supports Angular, React, Node.js, and more
+
+**How Nx works:**
+
+```bash
+# 1. Create Nx workspace
+npx create-nx-workspace@latest my-workspace
+
+# 2. Generate applications
+nx g @nx/angular:app my-app
+nx g @nx/react:app another-app
+
+# 3. Generate libraries
+nx g @nx/angular:lib shared-ui
+nx g @nx/angular:lib shared-data-access
+
+# 4. Run tasks
+nx serve my-app          # Serve app
+nx build my-app          # Build app
+nx test shared-ui        # Run tests
+nx lint my-app          # Lint code
+```
+
+**Dependency graph:**
+
+```typescript
+// libs/shared-ui depends on libs/shared-models
+// apps/my-app depends on libs/shared-ui
+
+// Nx creates a graph:
+my-app
+  └─ shared-ui
+      └─ shared-models
+
+// When you build my-app, Nx automatically builds dependencies first
+nx build my-app
+// → Builds shared-models
+// → Builds shared-ui  
+// → Builds my-app
+```
+
+**Affected commands (smart CI/CD):**
+
+```bash
+# Only test projects affected by changes
+nx affected:test --base=main
+
+# Only build affected projects
+nx affected:build --base=main --head=HEAD
+
+# See what's affected
+nx affected:graph
+
+# Run multiple targets in parallel
+nx run-many --target=build --all --parallel=3
+```
+
+**Caching mechanism:**
+
+```bash
+# First build - takes 2 minutes
+nx build my-app
+# ✓ Built successfully (120s)
+
+# Second build - instant (cached)
+nx build my-app
+# ✓ Retrieved from cache (0.5s)
+
+# Change a file in my-app
+# Edit src/app/app.component.ts
+
+# Build again - only rebuilds my-app (not dependencies)
+nx build my-app
+# ✓ shared-ui - from cache
+# ✓ shared-models - from cache
+# ✓ my-app - built (15s)
+```
+
+**Nx configuration:**
+
+```json
+// nx.json
+{
+  "tasksRunnerOptions": {
+    "default": {
+      "runner": "nx/tasks-runners/default",
+      "options": {
+        "cacheableOperations": ["build", "test", "lint"],
+        "parallel": 3
+      }
+    }
+  },
+  "targetDefaults": {
+    "build": {
+      "dependsOn": ["^build"],  // Build dependencies first
+      "cache": true
+    }
+  }
+}
+
+// project.json (per project)
+{
+  "name": "my-app",
+  "targets": {
+    "build": {
+      "executor": "@nx/angular:webpack-browser",
+      "options": { "outputPath": "dist/apps/my-app" }
+    }
+  },
+  "tags": ["type:app", "scope:client"]
+}
+```
+
+**Module boundaries (enforce architecture):**
+
+```json
+// .eslintrc.json
+{
+  "rules": {
+    "@nx/enforce-module-boundaries": [
+      "error",
+      {
+        "allow": [],
+        "depConstraints": [
+          {
+            "sourceTag": "scope:client",
+            "onlyDependOnLibsWithTags": ["scope:client", "scope:shared"]
+          },
+          {
+            "sourceTag": "type:feature",
+            "onlyDependOnLibsWithTags": ["type:ui", "type:data-access", "type:util"]
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Benefits:**
+- ✅ Speeds up builds and tests dramatically
+- ✅ Ensures only affected code is tested in CI
+- ✅ Prevents circular dependencies
+- ✅ Enforces architecture boundaries
+- ✅ Scales to hundreds of projects
+
+**Use cases:** Large monorepos, enterprise applications, design systems, multi-team projects
+
+---
+
+### Node and npm, what are they and how do they work?
+
+**Node.js** is a JavaScript runtime built on Chrome's V8 engine that lets you run JavaScript outside the browser (on servers, CLI tools, etc.).
+
+**npm (Node Package Manager)** is the default package manager for Node.js, used to install, share, and manage JavaScript packages.
+
+**How Node.js works:**
+
+```javascript
+// Node.js allows JavaScript to run on your machine
+// file: server.js
+const http = require('http');
+
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Hello from Node.js!');
+});
+
+server.listen(3000, () => {
+  console.log('Server running on port 3000');
+});
+
+// Run with: node server.js
+```
+
+**Node.js architecture:**
+
+```
+JavaScript Code
+      ↓
+   V8 Engine (compiles JS to machine code)
+      ↓
+   Node.js APIs (fs, http, crypto, etc.)
+      ↓
+   libuv (handles async I/O, event loop)
+      ↓
+Operating System (file system, network, etc.)
+```
+
+**Event Loop (how Node handles async operations):**
+
+```javascript
+console.log('1. Start');
+
+setTimeout(() => {
+  console.log('3. Timeout callback');
+}, 0);
+
+Promise.resolve().then(() => {
+  console.log('2. Promise callback');
+});
+
+console.log('4. End');
+
+// Output order:
+// 1. Start
+// 4. End
+// 2. Promise callback (microtask queue - higher priority)
+// 3. Timeout callback (macrotask queue)
+```
+
+**npm - Package Manager:**
+
+```bash
+# Initialize new project
+npm init
+# Creates package.json
+
+# Install package
+npm install express
+# - Downloads express from npm registry
+# - Adds to node_modules/
+# - Updates package.json dependencies
+# - Updates package-lock.json
+
+# Install dev dependency
+npm install --save-dev typescript
+# Adds to devDependencies
+
+# Install globally
+npm install -g @angular/cli
+# Available system-wide
+
+# Install specific version
+npm install react@18.2.0
+```
+
+**How npm install works:**
+
+```
+1. Read package.json
+   ↓
+2. Resolve dependency tree
+   - Check package-lock.json for exact versions
+   - Resolve peer dependencies
+   - Flatten dependency tree
+   ↓
+3. Download packages from registry (registry.npmjs.org)
+   ↓
+4. Extract to node_modules/
+   ↓
+5. Run install scripts (if any)
+   ↓
+6. Update package-lock.json
+```
+
+**package.json:**
+
+```json
+{
+  "name": "my-app",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node server.js",
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "express": "^4.18.0",    // ^ = compatible version (4.x.x)
+    "lodash": "~4.17.21"     // ~ = patch updates only (4.17.x)
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  }
+}
+```
+
+**node_modules structure:**
+
+```
+node_modules/
+├── express/              # Your direct dependency
+│   ├── package.json
+│   ├── lib/
+│   └── node_modules/     # Express's dependencies
+│       └── body-parser/
+├── lodash/               # Your direct dependency
+└── .package-lock.json
+```
+
+**npm scripts:**
+
+```json
+{
+  "scripts": {
+    "dev": "nodemon server.js",
+    "build": "tsc && webpack",
+    "test": "jest --coverage",
+    "lint": "eslint . --ext .ts",
+    "pretest": "npm run lint",    // Runs before test
+    "posttest": "echo 'Tests done'"  // Runs after test
+  }
+}
+```
+
+```bash
+# Run scripts
+npm run dev
+npm run build
+npm test  # npm t shorthand
+```
+
+**Key differences:**
+- **Node.js** = Runtime environment to execute JavaScript
+- **npm** = Package manager to install/manage dependencies
+
+---
+
+### What happens when you run npm install command? How is it different than `npm ci` command?
+
+**npm install - Step by step:**
+
+```bash
+npm install
+```
+
+**What happens:**
+
+1. **Read package.json** - Gets list of dependencies
+2. **Check package-lock.json** (if exists) - Gets exact versions to install
+3. **Resolve dependency tree:**
+   ```
+   your-app
+   ├── express@4.18.2
+   │   ├── body-parser@1.20.1
+   │   ├── cookie@0.5.0
+   │   └── ...
+   └── lodash@4.17.21
+   ```
+4. **Check npm cache** (`~/.npm/_cacache/`) - Reuse if available
+5. **Download packages** from registry.npmjs.org (if not cached)
+6. **Extract to node_modules/** - Creates flat structure where possible
+7. **Run lifecycle scripts:**
+   - `preinstall` scripts
+   - `install` scripts
+   - `postinstall` scripts
+8. **Update package-lock.json** - Locks exact versions installed
+9. **Create/update node_modules/.package-lock.json**
+
+**npm install behavior:**
+
+```bash
+# Install all dependencies from package.json
+npm install
+
+# Install and add to dependencies
+npm install express
+
+# Install and add to devDependencies
+npm install --save-dev typescript
+
+# Install specific version
+npm install react@18.0.0
+
+# Update packages within semver range
+npm install  # Updates packages if newer versions available
+
+# Force reinstall
+npm install --force
+```
+
+**Example scenario:**
+
+```json
+// package.json
+{
+  "dependencies": {
+    "express": "^4.18.0"  // Allows 4.18.0 to 4.x.x
+  }
+}
+
+// First developer runs:
+npm install
+// Installs express@4.18.2 (latest in 4.x range)
+// Creates package-lock.json with exact version
+
+// Second developer runs:
+npm install
+// Reads package-lock.json
+// Installs exact same version: express@4.18.2
+```
+
+---
+
+**npm ci (Continuous Integration) - Step by step:**
+
+```bash
+npm ci
+```
+
+**What happens:**
+
+1. **Check for package-lock.json** - REQUIRED (fails if missing)
+2. **Delete node_modules/** entirely
+3. **Read package-lock.json** - Install EXACT versions listed
+4. **Download from cache/registry**
+5. **Extract to clean node_modules/**
+6. **Run lifecycle scripts**
+7. **DOES NOT update package-lock.json**
+
+**Key differences:**
+
+| Feature | npm install | npm ci |
+|---------|-------------|---------|
+| **Requires package-lock.json** | No (creates if missing) | Yes (fails without it) |
+| **Updates package-lock.json** | Yes | No |
+| **Respects semver ranges** | Yes (can install newer versions) | No (exact versions only) |
+| **Deletes node_modules first** | No | Yes (full clean install) |
+| **Speed** | Slower (checks versions) | Faster (no resolution) |
+| **Use case** | Development | CI/CD, Production |
+| **Output** | Can vary between runs | 100% reproducible |
+
+**When to use npm install:**
+
+```bash
+# Development - adding/updating packages
+npm install express
+npm install
+
+# When package.json changes
+npm install
+
+# Update packages
+npm update
+```
+
+**When to use npm ci:**
+
+```bash
+# CI/CD pipelines
+- run: npm ci
+- run: npm test
+- run: npm run build
+
+# Production deployments
+npm ci --production  # Only installs dependencies, not devDependencies
+
+# Clean install (fresh start)
+npm ci
+```
+
+**Example CI/CD workflow:**
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm ci  # NOT npm install
+      
+      - name: Run tests
+        run: npm test
+      
+      - name: Build
+        run: npm run build
+```
+
+**Why npm ci in CI/CD?**
+
+```bash
+# Developer A:
+npm install express
+# Installs express@4.18.2
+# Updates package-lock.json
+
+# CI pipeline (wrong):
+npm install
+# Might install express@4.18.3 if released
+# Tests pass but production breaks!
+
+# CI pipeline (correct):
+npm ci
+# Installs express@4.18.2 (exact from lock file)
+# Same version every time
+# Reproducible builds
+```
+
+**Speed comparison:**
+
+```bash
+# First time (no cache)
+npm install  # ~45 seconds
+npm ci       # ~35 seconds (10s faster)
+
+# With cache
+npm install  # ~15 seconds
+npm ci       # ~8 seconds (almost 2x faster)
+```
+
+**Summary:**
+- **npm install**: Development, flexible, updates lock file
+- **npm ci**: CI/CD, fast, reproducible, strict
+
+---
+
+### What is `.npmrc` file and why is it needed?
+
+**.npmrc** is an npm configuration file that stores settings for how npm behaves, including registry URLs, authentication tokens, and package installation preferences.
+
+**Location hierarchy (priority order):**
+
+```
+1. Per-project: /path/to/project/.npmrc    (highest priority)
+2. Per-user:    ~/.npmrc
+3. Global:      /usr/local/etc/npmrc
+4. Built-in:    npm defaults               (lowest priority)
+```
+
+**Common use cases:**
+
+**1. Private npm registry:**
+
+```bash
+# .npmrc
+# Use private registry for scoped packages
+@mycompany:registry=https://npm.mycompany.com/
+registry=https://registry.npmjs.org/
+
+# Authentication token
+//npm.mycompany.com/:_authToken=${NPM_TOKEN}
+```
+
+**2. GitHub Packages:**
+
+```bash
+# .npmrc
+@myorganization:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+**3. Package installation settings:**
+
+```bash
+# .npmrc
+# Don't save exact versions
+save-exact=false
+
+# Use ~ instead of ^ for new packages
+save-prefix=~
+
+# Only install production dependencies
+production=true
+
+# Engine strictness
+engine-strict=true
+
+# Disable package-lock.json updates
+package-lock=false
+```
+
+**4. Performance optimizations:**
+
+```bash
+# .npmrc
+# Use faster registry mirror
+registry=https://registry.npmmirror.com/
+
+# Increase network concurrency
+maxsockets=20
+
+# Disable progress bar (faster in CI)
+progress=false
+
+# Prefer offline (use cache when possible)
+prefer-offline=true
+```
+
+**5. Security settings:**
+
+```bash
+# .npmrc
+# Audit packages on install
+audit=true
+
+# Fail install if vulnerabilities found
+audit-level=moderate
+
+# Verify package signatures
+strict-ssl=true
+```
+
+**6. Workspace/Monorepo settings:**
+
+```bash
+# .npmrc (root of monorepo)
+# Use workspaces
+workspaces=true
+
+# Hoist dependencies to root
+hoist=true
+
+# Link workspace packages
+link-workspace-packages=true
+```
+
+**Real-world example (Enterprise setup):**
+
+```bash
+# .npmrc (project root)
+# Private registry for company packages
+@acme:registry=https://npm.acme.com/
+
+# Public registry for everything else
+registry=https://registry.npmjs.org/
+
+# Auth token (from environment variable - never commit actual token!)
+//npm.acme.com/:_authToken=${NPM_TOKEN}
+
+# Install settings
+save-exact=true
+package-lock=true
+engine-strict=true
+
+# Security
+audit=true
+audit-level=high
+
+# Performance
+prefer-offline=true
+progress=false
+```
+
+**Environment-specific .npmrc:**
+
+```bash
+# Development
+# .npmrc.dev
+registry=https://registry.npmjs.org/
+loglevel=verbose
+
+# Production
+# .npmrc.prod
+registry=https://npm-proxy.company.com/
+production=true
+audit=true
+```
+
+**Using environment variables:**
+
+```bash
+# .npmrc
+registry=https://registry.npmjs.org/
+//registry.npmjs.org/:_authToken=${NPM_AUTH_TOKEN}
+
+# Set in CI/CD
+export NPM_AUTH_TOKEN=npm_xxxxxxxxxxxxx
+npm install
+
+# Or in GitHub Actions
+- name: Install dependencies
+  env:
+    NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+  run: npm ci
+```
+
+**Security best practices:**
+
+```bash
+# ❌ DON'T commit tokens directly
+//npm.pkg.github.com/:_authToken=ghp_actual_token_here
+
+# ✅ DO use environment variables
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+
+# ✅ Add to .gitignore
+.npmrc.local
+.npmrc.dev
+```
+
+**Common .npmrc configurations:**
+
+```bash
+# Fast installs
+prefer-offline=true
+progress=false
+audit=false
+fund=false
+
+# Strict mode
+save-exact=true
+engine-strict=true
+audit-level=high
+
+# Monorepo
+workspaces=true
+link-workspace-packages=true
+
+# Cache settings
+cache=/custom/cache/path
+cache-min=3600
+```
+
+**Debugging npm config:**
+
+```bash
+# View all config
+npm config list
+
+# View specific config
+npm config get registry
+
+# Set config
+npm config set registry https://registry.npmjs.org/
+
+# Delete config
+npm config delete proxy
+
+# Get effective config (merged from all sources)
+npm config list -l
+```
+
+**Why .npmrc is needed:**
+
+1. **Private packages** - Access company's private npm registry
+2. **Authentication** - Store registry credentials securely
+3. **Performance** - Optimize download speed and caching
+4. **Security** - Enforce audit and package verification
+5. **Consistency** - Same settings across team members
+6. **CI/CD** - Configure automated pipelines
+7. **Monorepos** - Workspace and hoisting configuration
+
+**.npmrc in different scenarios:**
+
+```bash
+# Open source project
+# .npmrc
+save-exact=false
+package-lock=true
+
+# Enterprise project
+# .npmrc
+@company:registry=https://npm.company.com
+//npm.company.com/:_authToken=${NPM_TOKEN}
+audit=true
+audit-level=high
+
+# Monorepo
+# .npmrc (root)
+workspaces=true
+link-workspace-packages=true
+hoist=true
+```
+
+**Summary:** `.npmrc` is essential for configuring npm behavior, especially for private registries, authentication, performance tuning, and maintaining consistent environments across development, CI/CD, and production.
