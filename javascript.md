@@ -831,3 +831,97 @@ Push notifications are initiated by the server and delivered to the client witho
 - Progressive Web Apps (PWAs)
 
 Both approaches have their place in modern web development, and the choice depends on your application's requirements for real-time communication, resource efficiency, and user experience.
+
+## Tricky output based questions:
+
+## Coding questions:
+
+## Polyfill for Array.reduce
+```js
+Array.prototype.myReduce = function (callback, initialValue) {
+  let accumulator = initialValue;
+  let startIndex = 0;
+
+  this.forEach((item, index) => {
+    if (accumulator === undefined && index === 0) {
+      accumulator = item;
+    } else {
+      accumulator = callback(accumulator, item, index);
+    }
+  });
+
+  return accumulator;
+};
+```
+
+## Polyfill for Promise.all (simplified version)
+```js
+Promise.myAll = function (promises) {
+  return new Promise((resolve, reject) => {
+    let results = [];
+    let completed = 0;
+
+    promises.forEach((promise, index) => {
+      Promise.resolve(promise)
+        .then(value => {
+          results[index] = value;
+          completed++;
+          if (completed === promises.length) {
+            resolve(results);
+          }
+        })
+        .catch(reject);
+    });
+  });
+};
+```
+
+
+### Write a function to flatten an array with depth as parameter
+```js
+const arr = [1, [2, 3], 4, [5, [6, 7]], 8];
+
+function flattenArray(arrToFlat, depth = 1) {
+  const result = [];
+  arrToFlat.forEach((item) => {
+    if (Array.isArray(item) && depth > 0) {
+      result.push(...flattenArray(item, depth - 1))
+    } else {
+      result.push(item);
+    }
+  });
+  return result;
+}
+
+console.log(flattenArray(arr, 3));
+```
+
+### Write a function to flatten an object with a separator given in func parameters.
+```js
+const obj = {
+  a: 1,
+  b: { b1: 2, b2: 3 },
+  c: 4,
+  d: { d1: { d11: 5, d12: 6 }, d2: 7 }
+};
+
+function flattenObject(objToFlatten, depth = 0, separator = '.') {
+  const result = {};
+
+  Object.keys(objToFlatten).forEach(key => {
+    const value = objToFlatten[key];
+    if (typeof value === 'object' && value !== null && depth > 0) {
+      const nestedResult = flattenObject(value, depth - 1, separator);
+      Object.keys(nestedResult).forEach(nestedKey => {
+        result[`${key}${separator}${nestedKey}`] = nestedResult[nestedKey];
+      });
+    } else {
+      result[key] = value;
+    }
+  });
+  return result;
+} 
+
+const flattenedObj = flattenObject(obj, 1);
+console.log(flattenedObj);
+```
