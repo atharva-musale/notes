@@ -836,7 +836,7 @@ Both approaches have their place in modern web development, and the choice depen
 
 ## Coding questions:
 
-## Polyfill for Array.reduce
+### Polyfill for Array.reduce
 ```js
 Array.prototype.myReduce = function (callback, initialValue) {
   let accumulator = initialValue;
@@ -854,7 +854,7 @@ Array.prototype.myReduce = function (callback, initialValue) {
 };
 ```
 
-## Polyfill for Promise.all (simplified version)
+### Polyfill for Promise.all (simplified version)
 ```js
 Promise.myAll = function (promises) {
   return new Promise((resolve, reject) => {
@@ -893,7 +893,7 @@ function flattenArray(arrToFlat, depth = 1) {
   return result;
 }
 
-console.log(flattenArray(arr, 3));
+console.log(flattenArray(arr, 2));
 ```
 
 ### Write a function to flatten an object with a separator given in func parameters.
@@ -910,8 +910,11 @@ function flattenObject(objToFlatten, depth = 0, separator = '.') {
 
   Object.keys(objToFlatten).forEach(key => {
     const value = objToFlatten[key];
+
     if (typeof value === 'object' && value !== null && depth > 0) {
+      // flatten the nested object
       const nestedResult = flattenObject(value, depth - 1, separator);
+      // attach all of its keys to result
       Object.keys(nestedResult).forEach(nestedKey => {
         result[`${key}${separator}${nestedKey}`] = nestedResult[nestedKey];
       });
@@ -925,3 +928,28 @@ function flattenObject(objToFlatten, depth = 0, separator = '.') {
 const flattenedObj = flattenObject(obj, 1);
 console.log(flattenedObj);
 ```
+
+### Write a function to deep clone an object.
+```js
+function deepClone(obj) {
+  if (obj === null || typeof obj !== 'object') {
+    return obj; // Return primitive values as is
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => deepClone(item));
+  }
+
+  const clonedObj = {};
+  for (const key in obj) {
+    /**
+     * Check if the property is a direct property of the object
+     * This is important to avoid cloning properties from the prototype chain,
+     * which could lead to unexpected behavior and potential security issues.
+     */
+    if (obj.hasOwnProperty(key)) {
+      clonedObj[key] = deepClone(obj[key]);
+    }
+  }
+  return clonedObj;
+}

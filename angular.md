@@ -1263,3 +1263,102 @@ export const userResolver: ResolveFn<User> = (route) => {
 - **Better UX**: No loading states in component
 - **Error handling**: Centralized data fetching errors
 - **Route protection**: Can prevent navigation if data fails to load
+
+### 22. What are environment initializers in Angular?
+
+Environment initializers let you run setup logic once, when the application's dependency injection environment is created — before the app starts rendering. You provide them with `provideEnvironmentInitializer()` (or the `ENVIRONMENT_INITIALIZER` token). They're commonly used for things like configuring a library, warming up a cache, or reading initial config, using DI (`inject()`) inside the callback.
+
+**Example:**
+```typescript
+import { provideEnvironmentInitializer, inject } from '@angular/core';
+import { bootstrapApplication } from '@angular/platform-browser';
+
+bootstrapApplication(AppComponent, {
+  providers: [
+    provideEnvironmentInitializer(() => {
+      const configService = inject(ConfigService);
+      configService.init(); // runs once at startup
+    })
+  ]
+});
+```
+
+### 23. Explain unit testing in angular for services and components with a basic example.
+
+Angular uses **Jasmine** (test framework) and **Karma** (test runner) by default, along with `TestBed` to create testing modules that mimic the real app's DI setup.
+
+- **Service testing**: Usually plain — instantiate the service (via `TestBed.inject()`) and call its methods directly.
+- **Component testing**: Use `TestBed.createComponent()` to get a `ComponentFixture`, which gives access to the component instance and its rendered DOM.
+
+**Service example:**
+```typescript
+describe('CounterService', () => {
+  let service: CounterService;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    service = TestBed.inject(CounterService);
+  });
+
+  it('should increment the count', () => {
+    expect(service.increment()).toBe(1);
+  });
+});
+```
+
+**Component example:**
+```typescript
+describe('CounterComponent', () => {
+  let fixture: ComponentFixture<CounterComponent>;
+  let component: CounterComponent;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({ declarations: [CounterComponent] });
+    fixture = TestBed.createComponent(CounterComponent);
+    component = fixture.componentInstance;
+  });
+
+  it('should display count of 0 initially', () => {
+    fixture.detectChanges(); // triggers ngOnInit + rendering
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('span')?.textContent).toContain('0');
+  });
+});
+```
+
+### 24. Explain switchMap, mergeMap, concatMap, exhaustMap operators in RxJS.
+
+These are RxJS "flattening" operators, they map each emitted value to an inner observable, but differ in how they handle multiple inner observables that overlap in time.
+
+**switchMap** — cancels the previous inner observable when a new value arrives, keeping only the latest.
+```typescript
+searchInput.valueChanges.pipe(
+  switchMap(term => this.api.search(term))
+).subscribe(results => this.results = results);
+```
+> Use when only the latest result matters, e.g., type-ahead search (old requests should be cancelled).
+
+**mergeMap** — runs all inner observables concurrently, emitting results as they arrive (no cancellation, no order guarantee).
+```typescript
+userIds.pipe(
+  mergeMap(id => this.api.getUser(id))
+).subscribe(user => this.users.push(user));
+```
+> Use when requests are independent and can run in parallel, e.g., uploading multiple files at once.
+
+**concatMap** — queues inner observables and runs them one at a time, in order.
+```typescript
+saveClicks.pipe(
+  concatMap(change => this.api.saveChange(change))
+).subscribe(() => console.log('saved'));
+```
+> Use when order matters and each request must finish before the next starts, e.g., sequential save operations.
+
+**exhaustMap** — ignores new values while an inner observable is still active.
+```typescript
+loginClicks.pipe(
+  exhaustMap(() => this.api.login())
+).subscribe(() => this.router.navigate(['/home']));
+```
+> Use to prevent duplicate submissions, e.g., ignoring extra clicks on a login/submit button while a request is in flight.
+
